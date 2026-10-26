@@ -1,0 +1,19 @@
+﻿using System;
+using System.Collections.Generic;
+
+namespace HotelManagement.Models;
+
+public partial class Cttn
+{
+    public string MaLph { get; set; } = null!;
+
+    public string MaTn { get; set; } = null!;
+
+    public int? Sl { get; set; }
+
+    public bool? DaXoa { get; set; }
+
+    public virtual LoaiPhong MaLphNavigation { get; set; } = null!;
+
+    public virtual TienNghi MaTnNavigation { get; set; } = null!;
+}
