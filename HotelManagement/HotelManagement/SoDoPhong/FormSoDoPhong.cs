@@ -134,11 +134,10 @@ public partial class FormSoDoPhong : Form
         }
     }
 
-    private void btnDatPhong_Click(object? sender, EventArgs e)
+    private async void btnDatPhong_Click(object? sender, EventArgs e)
     {
         string? room = dataGridViewPhong.CurrentRow?.Cells["MaPH"].Value?.ToString();
-        MessageBox.Show(this, "Chức năng đặt phòng thuộc phần thực hành tiếp theo."
-            + (room == null ? "" : Environment.NewLine + "Phòng đang chọn: " + room),
-            "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        using var form = new FormDatPhong(room);
+        if (form.ShowDialog(this) == DialogResult.OK) await TaiLaiDanhSachAsync();
     }
 }

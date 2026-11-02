@@ -1,0 +1,6 @@
+.vs/
+**/bin/
+**/obj/
+tmp/
+tests/
+README_LAB2.md
