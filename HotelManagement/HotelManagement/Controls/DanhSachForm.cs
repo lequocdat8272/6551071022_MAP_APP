@@ -8,20 +8,28 @@ public abstract class DanhSachForm : Form
     protected readonly DataGridView Grid = new();
     protected readonly TextBox Search = new();
     protected readonly Button AddButton = new();
+    protected readonly FlowLayoutPanel Toolbar = new();
     protected readonly CancellationTokenSource Lifetime = new();
     private readonly Button _export = new();
     private readonly Label _count = new();
     private bool _busy;
+    private readonly bool _detailsOnly;
 
-    protected DanhSachForm(string title)
+    protected DanhSachForm(string title, bool detailsOnly = false)
     {
+        _detailsOnly = detailsOnly;
         Text = title;
         Font = new Font("Segoe UI", 10);
         BackColor = Color.Honeydew;
         ClientSize = new Size(960, 620);
         MinimumSize = new Size(650, 400);
         StartPosition = FormStartPosition.CenterParent;
-        var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 65, Padding = new Padding(12), WrapContents = false };
+        var toolbar = Toolbar;
+        toolbar.Dock = DockStyle.Top;
+        toolbar.Height = 65;
+        toolbar.Padding = new Padding(12);
+        toolbar.WrapContents = false;
+        toolbar.AutoScroll = true;
         toolbar.Controls.Add(new PictureBox { Image = Properties.Resources.search, SizeMode = PictureBoxSizeMode.Zoom, Size = new Size(30, 32) });
         Search.Name = "txtTimKiem";
         Search.Width = 230;
@@ -91,17 +99,28 @@ public abstract class DanhSachForm : Form
     {
         Grid.Columns.Add(ImageColumn("Icon", "", icon));
         foreach (var column in columns) Grid.Columns.Add(column.Name, column.Header);
-        Grid.Columns.Add(ImageColumn("Sua", "Sửa", Properties.Resources.edit));
-        Grid.Columns.Add(ImageColumn("Xoa", "Xóa", Properties.Resources.delete));
+        if (_detailsOnly)
+        {
+            var details = ImageColumn("Sua", "Chi tiết", Properties.Resources.details);
+            details.Width = 68;
+            Grid.Columns.Add(details);
+        }
+        else
+        {
+            Grid.Columns.Add(ImageColumn("Sua", "Sửa", Properties.Resources.edit));
+            Grid.Columns.Add(ImageColumn("Xoa", "Xóa", Properties.Resources.delete));
+        }
     }
 
     protected void Row(Image icon, params object?[] values)
-        => Grid.Rows.Add(new object?[] { icon }.Concat(values).Concat([Properties.Resources.edit, Properties.Resources.delete])
-            .Select(value => value ?? "").ToArray());
+    {
+        Image[] actions = _detailsOnly ? [Properties.Resources.details] : [Properties.Resources.edit, Properties.Resources.delete];
+        Grid.Rows.Add(new object?[] { icon }.Concat(values).Concat(actions).Select(value => value ?? "").ToArray());
+    }
 
     protected abstract Task LoadRowsAsync();
     protected abstract Form CreateEditor(string? id);
-    protected abstract Task DeleteAsync(string id);
+    protected virtual Task DeleteAsync(string id) => throw new NotSupportedException();
 
     public async Task ReloadAsync()
     {
@@ -118,7 +137,7 @@ public abstract class DanhSachForm : Form
         if (editor.ShowDialog(this) == DialogResult.OK) await ReloadAsync();
     }
 
-    private async Task RunAsync(Func<Task> work)
+    protected async Task RunAsync(Func<Task> work)
     {
         if (_busy || IsDisposed) return;
         _busy = true;
@@ -136,16 +155,19 @@ public abstract class DanhSachForm : Form
         }
     }
 
-    private void Filter()
+    protected void Filter()
     {
         string keyword = Search.Text.Trim();
         Grid.CurrentCell = null;
         foreach (DataGridViewRow row in Grid.Rows)
-            row.Visible = keyword.Length == 0 || row.Cells.Cast<DataGridViewCell>()
-                .Where(c => c.OwningColumn is not DataGridViewImageColumn)
-                .Any(c => (c.Value?.ToString() ?? "").Contains(keyword, StringComparison.OrdinalIgnoreCase));
+            row.Visible = MatchesRow(row, keyword);
         _count.Text = $"{Grid.Rows.Cast<DataGridViewRow>().Count(r => r.Visible)} dòng";
     }
+
+    protected virtual bool MatchesRow(DataGridViewRow row, string keyword)
+        => keyword.Length == 0 || row.Cells.Cast<DataGridViewCell>()
+            .Where(c => c.OwningColumn is not DataGridViewImageColumn)
+            .Any(c => (c.Value?.ToString() ?? "").Contains(keyword, StringComparison.OrdinalIgnoreCase));
 
     private void Export()
     {

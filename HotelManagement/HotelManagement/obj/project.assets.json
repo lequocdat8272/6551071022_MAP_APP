@@ -3709,11 +3709,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\lequo\\Documents\\Study\\LTTQ\\6551071022_MAP_APP\\HotelManagement\\HotelManagement\\HotelManagement.csproj",
+      "projectUniqueName": "C:\\Users\\lequo\\Documents\\Projects\\HotelManagement\\HotelManagement\\HotelManagement.csproj",
       "projectName": "HotelManagement",
-      "projectPath": "C:\\Users\\lequo\\Documents\\Study\\LTTQ\\6551071022_MAP_APP\\HotelManagement\\HotelManagement\\HotelManagement.csproj",
+      "projectPath": "C:\\Users\\lequo\\Documents\\Projects\\HotelManagement\\HotelManagement\\HotelManagement.csproj",
       "packagesPath": "C:\\Users\\lequo\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\lequo\\Documents\\Study\\LTTQ\\6551071022_MAP_APP\\HotelManagement\\HotelManagement\\obj\\",
+      "outputPath": "C:\\Users\\lequo\\Documents\\Projects\\HotelManagement\\HotelManagement\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -3744,7 +3744,7 @@
         ]
       },
       "restoreAuditProperties": {
-        "enableAudit": "true",
+        "enableAudit": "false",
         "auditLevel": "low",
         "auditMode": "all"
       },

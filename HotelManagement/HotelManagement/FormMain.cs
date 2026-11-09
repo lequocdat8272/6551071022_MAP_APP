@@ -2,6 +2,10 @@ using HotelManagement.DangNhap;
 using HotelManagement.SoDoPhong;
 using HotelManagement.Phong;
 using HotelManagement.LoaiPhong;
+using HotelManagement.DichVu;
+using HotelManagement.TienNghi;
+using HotelManagement.KhachHang;
+using HotelManagement.NhanVien;
 
 namespace HotelManagement
 {
@@ -11,6 +15,7 @@ namespace HotelManagement
         {
             InitializeComponent();
             Text = "Quản lý khách sạn";
+            button9.Text = "Đặt phòng";
             AutoScroll = false;
             StartPosition = FormStartPosition.CenterScreen;
             MinimumSize = new Size(1080, 720);
@@ -114,27 +119,28 @@ namespace HotelManagement
 
         private void button7_Click(object? sender, EventArgs e)
         {
-            LoadFormCon(new NhanVien.FormDanhSachNhanVien());
+            LoadFormCon(new FormDanhSachNhanVien());
         }
 
         private void button6_Click(object? sender, EventArgs e)
         {
-            LoadFormCon(new KhachHang.FormDanhSachKhachHang());
+            LoadFormCon(new FormDanhSachKhachHang());
         }
 
         private void button12_Click(object? sender, EventArgs e)
         {
-            LoadFormCon(new TienNghi.FormDanhSachTienNghi());
+            LoadFormCon(new FormDanhSachTienNghi());
         }
 
         private void button11_Click(object? sender, EventArgs e)
         {
-            LoadFormCon(new DichVu.FormDanhSachDichVu());
+            LoadFormCon(new FormDanhSachDichVu());
         }
 
         private void button9_Click(object? sender, EventArgs e)
         {
-            HienThiDangPhatTrien("Danh sách đặt phòng");
+            using var form = new FormDatPhong();
+            form.ShowDialog(this);
         }
 
         private void button10_Click(object? sender, EventArgs e)

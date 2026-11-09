@@ -1,6 +1,2 @@
 namespace HotelManagement.TienNghi;
-
-public class FormThemTienNghi : TienNghiEditor
-{
-    public FormThemTienNghi() : base(null) { }
-}
+public sealed class FormThemTienNghi : FormTienNghi { public FormThemTienNghi() : base(null) { } }

@@ -151,7 +151,7 @@ namespace HotelManagement.LoaiPhong
             }
             else if (tenCot == "colTienNghi")
             {
-                using var form = new ChiTietTienNghi.FormDanhSachChiTietTienNghi(maLPH, tenLPH ?? maLPH);
+                using var form = new HotelManagement.ChiTietTienNghi.FormDanhSachChiTietTienNghi(maLPH, tenLPH ?? maLPH);
                 form.ShowDialog(this);
             }
         }

@@ -1,6 +1,2 @@
 namespace HotelManagement.KhachHang;
-
-public class FormThemKhachHang : KhachHangEditor
-{
-    public FormThemKhachHang() : base(null) { }
-}
+public sealed class FormThemKhachHang : FormKhachHang { public FormThemKhachHang() : base(null) { } }

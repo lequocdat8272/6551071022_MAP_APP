@@ -1,40 +1,37 @@
-using HotelManagement.Controls;
+using HotelManagement.Common;
+using HotelManagement.DangNhap;
 using HotelManagement.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace HotelManagement.NhanVien;
-
-public class FormDanhSachNhanVien : DanhSachForm
+public sealed class FormDanhSachNhanVien : FormDanhSach
 {
-    public FormDanhSachNhanVien() : base("Danh sách nhân viên")
+    public FormDanhSachNhanVien() : base("Danh sách nhân viên", ("MaNV", "Mã nhân viên"), ("TenNV", "Họ tên"),
+        ("ChucVu", "Chức vụ"), ("Luong", "Lương (VNĐ)"), ("SDT", "Điện thoại"), ("CCCD", "CCCD"),
+        ("NgaySinh", "Ngày sinh"), ("GioiTinh", "Giới tính"), ("DiaChi", "Địa chỉ"), ("Email", "Email"))
     {
-        Grid.Name = "dtgDanhSachNhanVien";
-        Columns(Properties.Resources.NhanVien, ("MaNV", "Mã NV"), ("TenNV", "Họ và tên"), ("ChucVu", "Chức vụ"),
-            ("Luong", "Lương"), ("SDT", "Điện thoại"), ("CCCD", "CCCD"), ("NgaySinh", "Ngày sinh"),
-            ("GioiTinh", "Giới tính"), ("DiaChi", "Địa chỉ"), ("Email", "Email"));
-        Grid.Columns["Luong"]!.DefaultCellStyle.Format = "#,##0.####' VNĐ'";
+        Grid.Columns["Luong"]!.DefaultCellStyle.Format = "N0";
         Grid.Columns["NgaySinh"]!.DefaultCellStyle.Format = "dd/MM/yyyy";
-        foreach (DataGridViewColumn c in Grid.Columns)
-            if (c is not DataGridViewImageColumn) c.MinimumWidth = 100;
+        foreach (DataGridViewColumn column in Grid.Columns) column.MinimumWidth = 90;
+        Grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.AllCells;
     }
-
     protected override async Task LoadRowsAsync()
     {
         await using var db = new HotelManagementContext();
-        var items = await db.NhanViens.AsNoTracking().Where(n => n.DaXoa != true).OrderBy(n => n.MaNv).ToListAsync(Lifetime.Token);
+        var rows = await db.NhanViens.AsNoTracking().Where(x => x.DaXoa != true).OrderBy(x => x.MaNv).ToListAsync(Lifetime);
         if (IsDisposed) return;
         Grid.Rows.Clear();
-        foreach (var n in items) Row(Properties.Resources.NhanVien, n.MaNv, n.TenNv, n.ChucVu, n.Luong, n.Sdt,
-            n.Cccd, n.NgaySinh.ToDateTime(TimeOnly.MinValue), n.GioiTinh, n.DiaChi, n.Email);
+        foreach (var x in rows) Grid.Rows.Add(x.MaNv, x.TenNv, x.ChucVu, x.Luong, x.Sdt, x.Cccd,
+            x.NgaySinh.ToDateTime(TimeOnly.MinValue), x.GioiTinh, x.DiaChi, x.Email ?? "");
     }
-
     protected override Form CreateEditor(string? id) => id == null ? new FormThemNhanVien() : new FormSuaNhanVien(id);
-
     protected override async Task DeleteAsync(string id)
     {
-        if (id == DangNhap.FormDangNhap.MaNV_DangNhap) throw new InvalidOperationException("Không thể xóa nhân viên đang đăng nhập.");
+        if (id == FormDangNhap.MaNV_DangNhap) throw new InvalidOperationException("Không thể xóa nhân viên đang đăng nhập.");
         await using var db = new HotelManagementContext();
-        await db.NhanViens.Where(n => n.MaNv == id && n.DaXoa != true)
-            .ExecuteUpdateAsync(s => s.SetProperty(n => n.DaXoa, true), Lifetime.Token);
+        var x = await db.NhanViens.Include(x => x.TaiKhoans).SingleAsync(x => x.MaNv == id, Lifetime);
+        x.DaXoa = true;
+        foreach (var account in x.TaiKhoans) account.DaXoa = true;
+        await db.SaveChangesAsync(Lifetime);
     }
 }

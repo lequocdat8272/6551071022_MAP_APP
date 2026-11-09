@@ -1,6 +1,2 @@
 namespace HotelManagement.TienNghi;
-
-public class FormSuaTienNghi : TienNghiEditor
-{
-    public FormSuaTienNghi(string maTN) : base(maTN) { }
-}
+public sealed class FormSuaTienNghi : FormTienNghi { public FormSuaTienNghi(string id) : base(id) { } }

@@ -1,6 +1,2 @@
 namespace HotelManagement.NhanVien;
-
-public class FormSuaNhanVien : NhanVienEditor
-{
-    public FormSuaNhanVien(string maNV) : base(maNV) { }
-}
+public sealed class FormSuaNhanVien : FormNhanVien { public FormSuaNhanVien(string id) : base(id) { } }

@@ -9,7 +9,8 @@ public static class RoomQueries
         this IQueryable<Models.Phong> rooms, DateTime start, DateTime end)
     {
         if (end <= start) throw new ArgumentException("Thời gian kết thúc phải sau thời gian bắt đầu.");
-        return rooms.Where(p => p.DaXoa != true && (p.Ttph == "Bình thường" || p.Ttph == "Đã đặt")
+        return rooms.Where(p => p.DaXoa != true
+            && (p.Ttph == "Bình thường" || p.Ttph == "Đã đặt" || p.Ttph == "Đang thuê")
             && !p.Ctdps.Any(c => c.DaXoa != true && c.MaPtNavigation.DaXoa != true
                 && c.TrangThai != "Đã hủy" && c.TrangThai != "Hủy" && c.TrangThai != "Đã xong"
                 && c.CheckIn < end && c.CheckOut > start));

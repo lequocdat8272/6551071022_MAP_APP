@@ -1,6 +1,2 @@
 namespace HotelManagement.ChiTietTienNghi;
-
-public class FormThemChiTietTienNghi : ChiTietTienNghiEditor
-{
-    public FormThemChiTietTienNghi(string maLPH) : base(maLPH, null) { }
-}
+public sealed class FormThemChiTietTienNghi : FormChiTietTienNghi { public FormThemChiTietTienNghi(string maLPH) : base(maLPH, null) { } }

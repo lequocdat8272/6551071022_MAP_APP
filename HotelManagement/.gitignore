@@ -1,6 +1,6 @@
-.vs/
 **/bin/
 **/obj/
+.vs/
+*.user
 tmp/
-tests/
-README_LAB2.md
+output/

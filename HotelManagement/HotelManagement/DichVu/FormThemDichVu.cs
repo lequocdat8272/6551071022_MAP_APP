@@ -1,6 +1,2 @@
 namespace HotelManagement.DichVu;
-
-public class FormThemDichVu : DichVuEditor
-{
-    public FormThemDichVu() : base(false) { }
-}
+public sealed class FormThemDichVu : FormDichVu { public FormThemDichVu() : base(false) { } }

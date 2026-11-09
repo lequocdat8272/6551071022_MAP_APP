@@ -1,227 +1,197 @@
-using HotelManagement.Controls;
+using HotelManagement.Common;
+using HotelManagement.DangNhap;
 using HotelManagement.Models;
 using HotelManagement.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace HotelManagement.SoDoPhong;
 
-public class FormDatPhong : Form
+public sealed class FormDatPhong : Form
 {
-    private readonly TextBox _name = new() { Name = "txtHoVaTen", MaxLength = 50 };
-    private readonly TextBox _identity = new() { Name = "txtCCCD", MaxLength = 12 };
-    private readonly TextBox _phone = new() { Name = "txtSoDienThoai", MaxLength = 10 };
-    private readonly TextBox _nationality = new() { Name = "txtQuocTich", MaxLength = 30, Text = "Việt Nam" };
-    private readonly ComboBox _gender = new() { Name = "cbGioiTinh", DropDownStyle = ComboBoxStyle.DropDownList };
-    private readonly DateTimePicker _start = new() { Name = "dtpNgayBD", Format = DateTimePickerFormat.Custom, CustomFormat = "dd/MM/yyyy HH:mm" };
-    private readonly DateTimePicker _end = new() { Name = "dtpNgayKT", Format = DateTimePickerFormat.Custom, CustomFormat = "dd/MM/yyyy HH:mm" };
-    private readonly DataGridView _available = new() { Name = "dtgDanhSachPhongTrong" };
-    private readonly DataGridView _selected = new() { Name = "dtgDanhSachPhongDaChon" };
-    private readonly Button _save = new() { Name = "btnDatPhong", Text = "Đặt trước", AutoSize = true, BackColor = Color.Moccasin };
-    private readonly Button _cancel = new() { Text = "Hủy", AutoSize = true, DialogResult = DialogResult.Cancel };
-    private readonly List<BookingRoom> _rooms = [];
+    private readonly TextBox _passport = new() { MaxLength = 12 }, _name = new() { MaxLength = 50 },
+        _phone = new() { MaxLength = 10 }, _nationality = new() { MaxLength = 30 };
+    private readonly ComboBox _gender = new() { DropDownStyle = ComboBoxStyle.DropDownList };
+    private readonly DateTimePicker _start = new(), _end = new();
+    private readonly NumericUpDown _guests = new() { Minimum = 1, Maximum = 100, Value = 1, Width = 65 };
+    private readonly DataGridView _available = Ui.CreateGrid(), _chosen = Ui.CreateGrid();
+    private readonly Button _save = Ui.Button("Đặt phòng"), _lookup = Ui.Button("Tra cứu CCCD"), _refresh = Ui.Button("Tìm phòng trống");
+    private readonly Label _message = new() { AutoSize = true, ForeColor = Color.DarkCyan, MaximumSize = new Size(290, 0) };
     private readonly CancellationTokenSource _lifetime = new();
-    private CancellationTokenSource? _loading;
     private readonly string? _initialRoom;
-    private bool _ready, _saving, _existingCustomer;
-    private int _identityVersion;
+    private CancellationTokenSource? _searchCancellation;
+    private readonly List<BookingRoom> _rooms = new();
+    private bool _ready, _saving;
 
-    public FormDatPhong(string? maPhong = null)
+    public FormDatPhong(string? selectedRoom = null)
     {
-        _initialRoom = maPhong;
-        Text = "Đặt phòng trước";
+        _initialRoom = selectedRoom;
+        Text = "Đặt phòng";
         Font = new Font("Segoe UI", 10);
-        BackColor = Color.Honeydew;
-        ClientSize = new Size(1180, 690);
-        MinimumSize = new Size(1000, 600);
+        ClientSize = new Size(1220, 720);
+        MinimumSize = new Size(1050, 660);
         StartPosition = FormStartPosition.CenterParent;
-        _gender.Items.AddRange(["Nam", "Nữ", "Khác"]);
+        BackColor = Color.Honeydew;
+        var heading = new Label { Dock = DockStyle.Top, Height = 48, Text = "ĐẶT PHÒNG", Font = new Font(Font, FontStyle.Bold), TextAlign = ContentAlignment.MiddleCenter, ForeColor = Color.DarkCyan };
+        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, Padding = new Padding(10) };
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 310));
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        var customer = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
+        customer.Controls.Add(new Label { Text = "Thông tin khách hàng", AutoSize = true, Font = new Font(Font, FontStyle.Bold) });
+        foreach (var (caption, control) in new (string, Control)[] { ("CCCD/Passport", _passport), ("Họ tên", _name), ("Số điện thoại", _phone), ("Quốc tịch", _nationality), ("Giới tính", _gender) })
+        {
+            customer.Controls.Add(new Label { Text = caption, AutoSize = true, Margin = new Padding(3, 12, 3, 2) });
+            control.Width = 282; control.Name = caption;
+            customer.Controls.Add(control);
+        }
+        _gender.Items.AddRange(new object[] { "Nam", "Nữ" });
+        customer.Controls.Add(_lookup); customer.Controls.Add(_message);
+        var roomPanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
+        roomPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 145)); roomPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        var dates = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true };
+        _start.Format = _end.Format = DateTimePickerFormat.Custom;
+        _start.CustomFormat = _end.CustomFormat = "dd/MM/yyyy HH:mm";
+        _start.Width = _end.Width = 190;
+        _start.Value = DateTime.Today.AddDays(1).AddHours(14);
+        _end.Value = DateTime.Today.AddDays(2).AddHours(12);
         _start.MinDate = DateTime.Today;
         _start.MaxDate = new DateTime(2079, 6, 5);
         _end.MaxDate = new DateTime(2079, 6, 6, 23, 59, 0);
-        DateTime arrival = DateTime.Today.AddHours(14);
-        if (arrival < DateTime.Now) arrival = arrival.AddDays(1);
-        _start.Value = arrival;
-        _end.Value = arrival.Date.AddDays(1).AddHours(12);
-        var heading = new Label { Text = "ĐẶT PHÒNG", Dock = DockStyle.Top, Height = 48, TextAlign = ContentAlignment.MiddleCenter,
-            ForeColor = Color.Firebrick, Font = new Font(Font, FontStyle.Bold) };
-        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, Padding = new Padding(12) };
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 315));
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        var customer = new GroupBox { Text = "Thông tin khách hàng", Dock = DockStyle.Fill };
-        var fields = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1, Padding = new Padding(12) };
-        foreach (var (label, control) in new (string, Control)[] { ("CCCD/Passport", _identity), ("Họ và tên", _name),
-            ("Số điện thoại", _phone), ("Quốc tịch", _nationality), ("Giới tính", _gender) })
+        foreach (var (caption, control) in new (string, Control)[] { ("Nhận phòng", _start), ("Trả phòng", _end), ("Số người/phòng", _guests) })
         {
-            fields.Controls.Add(new Label { Text = label, AutoSize = true, Margin = new Padding(3, 12, 3, 4) });
-            control.Dock = DockStyle.Top;
-            fields.Controls.Add(control);
+            var block = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false };
+            block.Controls.Add(new Label { Text = caption, AutoSize = true }); block.Controls.Add(control); dates.Controls.Add(block);
         }
-        fields.Controls.Add(new Label { Text = "Rời ô CCCD/Passport để tra cứu khách đã có.\nDấu + để chọn phòng, dấu x để bỏ phòng.", AutoSize = true, MaximumSize = new Size(270, 0), Margin = new Padding(3, 20, 3, 3) });
-        customer.Controls.Add(fields);
-        layout.Controls.Add(customer, 0, 0);
-        var right = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
-        right.RowStyles.Add(new RowStyle(SizeType.Absolute, 100));
-        right.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        var dates = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2, Padding = new Padding(8) };
-        dates.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150)); dates.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        dates.Controls.Add(new Label { Text = "Ngày giờ nhận", AutoSize = true }, 0, 0);
-        dates.Controls.Add(_start, 1, 0);
-        dates.Controls.Add(new Label { Text = "Ngày giờ trả", AutoSize = true }, 0, 1);
-        dates.Controls.Add(_end, 1, 1);
-        _start.Width = _end.Width = 260;
-        right.Controls.Add(dates, 0, 0);
-        var lists = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 };
-        lists.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42));
-        lists.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 58));
-        DanhSachForm.ConfigureGrid(_available); DanhSachForm.ConfigureGrid(_selected);
-        _available.Columns.Add("MaPH", "Mã phòng"); _available.Columns.Add("TenLPH", "Loại phòng");
-        _available.Columns.Add("Capacity", "Sức chứa");
-        _available.Columns.Add(DanhSachForm.ImageColumn("Them", "+", Properties.Resources.Add));
-        _selected.Columns.Add("MaPH", "Phòng"); _selected.Columns.Add("Guests", "Số người");
-        _selected.Columns.Add("CheckIn", "Nhận phòng"); _selected.Columns.Add("CheckOut", "Trả phòng");
-        _selected.Columns["CheckIn"]!.DefaultCellStyle.Format = _selected.Columns["CheckOut"]!.DefaultCellStyle.Format = "dd/MM/yyyy HH:mm";
-        _selected.Columns["MaPH"]!.FillWeight = _selected.Columns["Guests"]!.FillWeight = 55;
-        _selected.Columns["CheckIn"]!.FillWeight = _selected.Columns["CheckOut"]!.FillWeight = 145;
-        _selected.Columns.Add(DanhSachForm.ImageColumn("Huy", "x", Properties.Resources.delete));
-        var availableGroup = new GroupBox { Text = "Danh sách phòng trống", Dock = DockStyle.Fill };
-        var selectedGroup = new GroupBox { Text = "Danh sách phòng đã chọn", Dock = DockStyle.Fill };
-        availableGroup.Controls.Add(_available); selectedGroup.Controls.Add(_selected);
-        lists.Controls.Add(availableGroup, 0, 0); lists.Controls.Add(selectedGroup, 1, 0);
-        right.Controls.Add(lists, 0, 1);
-        layout.Controls.Add(right, 1, 0);
-        var actions = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 60, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(12) };
-        actions.Controls.AddRange([_cancel, _save]);
-        Controls.Add(layout); Controls.Add(heading); Controls.Add(actions);
-        CancelButton = _cancel;
-        _identity.TextChanged += (_, _) => { _identityVersion++; SetCustomerEditable(true); };
-        _identity.Leave += async (_, _) => await LookupCustomerAsync();
-        _start.ValueChanged += async (_, _) =>
+        dates.Controls.Add(_refresh);
+        dates.Controls.Add(new Label { Text = "Mỗi phòng giữ ngày và giờ tại lúc bấm Chọn. Chọn lại phòng để đổi thời gian.", AutoSize = true });
+        roomPanel.Controls.Add(dates, 0, 0);
+        var grids = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 };
+        grids.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45)); grids.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
+        grids.Controls.Add(GridGroup("Danh sách phòng trống", _available), 0, 0);
+        grids.Controls.Add(GridGroup("Danh sách phòng đã chọn", _chosen), 1, 0);
+        roomPanel.Controls.Add(grids, 0, 1);
+        layout.Controls.Add(customer, 0, 0); layout.Controls.Add(roomPanel, 1, 0);
+        var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 55, FlowDirection = FlowDirection.RightToLeft };
+        var cancel = Ui.Button("Hủy"); cancel.DialogResult = DialogResult.Cancel;
+        buttons.Controls.Add(cancel); buttons.Controls.Add(_save);
+        Controls.Add(layout); Controls.Add(buttons); Controls.Add(heading);
+        CancelButton = cancel;
+        _available.Columns.Add("MaPH", "Mã phòng"); _available.Columns.Add("LoaiPhong", "Loại phòng"); _available.Columns.Add("SucChua", "Tối đa");
+        Ui.ActionColumn(_available, "Them", "Chọn");
+        _chosen.Columns.Add("MaPH", "Phòng"); _chosen.Columns.Add("SoNguoi", "Số người");
+        _chosen.Columns.Add("CheckIn", "Nhận phòng"); _chosen.Columns.Add("CheckOut", "Trả phòng");
+        _chosen.Columns["CheckIn"]!.DefaultCellStyle.Format = _chosen.Columns["CheckOut"]!.DefaultCellStyle.Format = "dd/MM/yyyy HH:mm";
+        Ui.ActionColumn(_chosen, "Huy", "Bỏ chọn");
+        _passport.TextChanged += (_, _) => { CustomerEditable(true); _name.Clear(); _phone.Clear(); _nationality.Clear(); _gender.SelectedIndex = -1; _message.Text = ""; };
+        _lookup.Click += async (_, _) =>
         {
-            if (!_ready) return;
-            if (_end.Value.Date <= _start.Value.Date) _end.Value = _start.Value.Date.AddDays(1).AddHours(12);
-            await LoadAvailableAsync();
+            _save.Enabled = false;
+            try { await LookupAsync(); }
+            catch (OperationCanceledException) { }
+            catch (Exception ex) { if (!IsDisposed) Ui.Info(this, "Lỗi tra cứu khách hàng: " + ex.Message); }
+            finally { if (!IsDisposed) _save.Enabled = true; }
         };
+        _refresh.Click += async (_, _) => await LoadAvailableAsync();
+        _start.ValueChanged += async (_, _) => { if (_ready) { if (_end.Value.Date <= _start.Value.Date) _end.Value = _start.Value.Date.AddDays(1).AddHours(12); await LoadAvailableAsync(); } };
         _end.ValueChanged += async (_, _) => { if (_ready) await LoadAvailableAsync(); };
-        _available.CellClick += async (_, e) =>
+        _available.CellClick += (_, e) =>
         {
-            if (_saving || e.RowIndex < 0 || e.ColumnIndex < 0 || _available.Columns[e.ColumnIndex].Name != "Them") return;
+            if (e.RowIndex < 0 || e.ColumnIndex < 0 || _available.Columns[e.ColumnIndex].Name != "Them") return;
             var row = _available.Rows[e.RowIndex];
-            var room = new BookingRoom(row.Cells["MaPH"].Value!.ToString()!, Convert.ToInt32(row.Cells["Capacity"].Value), Minute(_start.Value), Minute(_end.Value));
+            string id = row.Cells["MaPH"].Value!.ToString()!;
+            if (_rooms.Any(x => x.RoomId == id)) { Ui.Info(this, "Phòng đã được chọn."); return; }
+            if ((int)_guests.Value > Convert.ToInt32(row.Cells["SucChua"].Value)) { Ui.Info(this, "Số người vượt sức chứa của phòng."); return; }
+            var booking = new BookingRoom(id, (int)_guests.Value, Minute(_start.Value), Minute(_end.Value));
+            try { BookingService.ValidateRooms(new[] { booking }); }
+            catch (ArgumentException ex) { Ui.Info(this, ex.Message); return; }
+            _rooms.Add(booking); RenderChosen();
+        };
+        _chosen.CellClick += (_, e) =>
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex < 0 || _chosen.Columns[e.ColumnIndex].Name != "Huy") return;
+            string id = _chosen.Rows[e.RowIndex].Cells["MaPH"].Value!.ToString()!;
+            _rooms.RemoveAll(x => x.RoomId == id); RenderChosen();
+        };
+        _save.Click += async (_, _) =>
+        {
+            _saving = true; layout.Enabled = buttons.Enabled = false;
             try
             {
-                BookingService.ValidateRooms([room], DateTime.Now);
-                if (_rooms.Any(r => r.RoomId == room.RoomId)) return;
-                _rooms.Add(room); RefreshSelected(); await LoadAvailableAsync();
+                await LookupAsync();
+                var input = new BookingCustomer(_name.Text.Trim(), _passport.Text.Trim(), _phone.Text.Trim(), _nationality.Text.Trim(), _gender.Text);
+                string id = await new BookingService().SaveAsync(new BookingRequest(FormDangNhap.MaNV_DangNhap, input, _rooms.ToArray()));
+                Ui.Info(this, "Đặt phòng thành công. Mã phiếu thuê: " + id);
+                _saving = false; DialogResult = DialogResult.OK; Close();
             }
-            catch (Exception ex) { MessageBox.Show(this, ex.Message, "Thông báo"); }
+            catch (Exception ex) { if (!IsDisposed) Ui.Info(this, ex.InnerException?.Message ?? ex.Message); }
+            finally { _saving = false; if (!IsDisposed) layout.Enabled = buttons.Enabled = true; }
         };
-        _selected.CellClick += async (_, e) =>
-        {
-            if (_saving || e.RowIndex < 0 || e.ColumnIndex < 0 || _selected.Columns[e.ColumnIndex].Name != "Huy") return;
-            _rooms.RemoveAt(e.RowIndex); RefreshSelected(); await LoadAvailableAsync();
-        };
-        _save.Click += async (_, _) => await SaveAsync();
         Load += async (_, _) => { _ready = true; await LoadAvailableAsync(); };
-        FormClosing += (_, e) => { if (_saving && e.CloseReason == CloseReason.UserClosing) e.Cancel = true; };
-        Disposed += (_, _) => { _lifetime.Cancel(); _loading?.Cancel(); };
+        FormClosing += (_, e) => { if (_saving) e.Cancel = true; };
+        Disposed += (_, _) => { _lifetime.Cancel(); _searchCancellation?.Cancel(); };
     }
 
-    private static DateTime Minute(DateTime time) => new(time.Year, time.Month, time.Day, time.Hour, time.Minute, 0);
-
-    private void SetCustomerEditable(bool editable)
+    private static GroupBox GridGroup(string title, Control grid)
     {
-        if (editable && _existingCustomer)
-        {
-            _name.Clear(); _phone.Clear(); _nationality.Clear(); _gender.SelectedIndex = -1;
-        }
-        _existingCustomer = !editable;
-        _name.Enabled = _phone.Enabled = _nationality.Enabled = _gender.Enabled = editable;
+        var group = new GroupBox { Text = title, Dock = DockStyle.Fill, Padding = new Padding(6, 22, 6, 6) };
+        group.Controls.Add(grid); return group;
     }
+    private static DateTime Minute(DateTime value) => new(value.Year, value.Month, value.Day, value.Hour, value.Minute, 0);
+    private void CustomerEditable(bool enabled) => _name.Enabled = _phone.Enabled = _nationality.Enabled = _gender.Enabled = enabled;
 
-    private async Task LookupCustomerAsync()
+    private async Task LookupAsync()
     {
-        string identity = _identity.Text.Trim();
-        int version = _identityVersion;
-        if (identity.Length == 0) return;
+        string passport = _passport.Text.Trim();
+        if (passport.Length == 0) return;
+        _lookup.Enabled = false;
         try
         {
             await using var db = new HotelManagementContext();
-            var guest = await db.KhachHangs.AsNoTracking().FirstOrDefaultAsync(k => k.CccdPassport == identity && k.DaXoa != true, _lifetime.Token);
-            if (IsDisposed || version != _identityVersion) return;
-            if (guest == null) { SetCustomerEditable(true); return; }
-            _name.Text = guest.TenKh; _phone.Text = guest.Sdt; _nationality.Text = guest.QuocTich; _gender.Text = guest.GioiTinh;
-            SetCustomerEditable(false);
+            var customer = await db.KhachHangs.AsNoTracking().FirstOrDefaultAsync(x => x.CccdPassport == passport && x.DaXoa != true, _lifetime.Token);
+            if (IsDisposed || passport != _passport.Text.Trim()) return;
+            if (customer == null) { _message.Text = "Khách hàng mới. Nhập đầy đủ thông tin để tạo khi đặt phòng."; return; }
+            _name.Text = customer.TenKh; _phone.Text = customer.Sdt; _nationality.Text = customer.QuocTich; _gender.SelectedItem = customer.GioiTinh;
+            CustomerEditable(false);
+            _message.Text = "Đã tìm thấy khách hàng. Thông tin được giữ theo hồ sơ hiện có.";
         }
-        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
-        catch (Exception ex) { if (!IsDisposed) MessageBox.Show(this, "Lỗi tra cứu khách hàng: " + ex.Message, "Lỗi"); }
+        finally { if (!IsDisposed) _lookup.Enabled = true; }
     }
 
     private async Task LoadAvailableAsync()
     {
-        _loading?.Cancel();
+        _searchCancellation?.Cancel();
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
-        _loading = cancellation;
+        _searchCancellation = cancellation;
         _available.Enabled = false;
         try
         {
             DateTime start = Minute(_start.Value), end = Minute(_end.Value);
             _available.Rows.Clear();
-            if (end.Date <= start.Date) return;
+            if (end.Date <= start.Date) { _refresh.Text = "Kiểm tra ngày trả"; return; }
             await using var db = new HotelManagementContext();
-            var rooms = await db.Phongs.AsNoTracking().AvailableDuring(start, end).OrderBy(p => p.MaPh)
-                .Select(p => new { p.MaPh, p.MaLphNavigation.TenLph, p.MaLphNavigation.SoNguoiToiDa }).ToListAsync(cancellation.Token);
+            var rooms = await db.Phongs.AsNoTracking().AvailableDuring(start, end).OrderBy(x => x.MaPh)
+                .Select(x => new { x.MaPh, x.MaLphNavigation.TenLph, x.MaLphNavigation.SoNguoiToiDa }).ToListAsync(cancellation.Token);
             if (IsDisposed || cancellation.IsCancellationRequested) return;
-            foreach (var room in rooms.Where(r => !_rooms.Any(s => s.RoomId == r.MaPh)))
+            foreach (var room in rooms)
             {
-                int index = _available.Rows.Add(room.MaPh, room.TenLph, room.SoNguoiToiDa, Properties.Resources.Add);
+                int index = _available.Rows.Add(room.MaPh, room.TenLph, room.SoNguoiToiDa);
                 if (room.MaPh == _initialRoom) _available.CurrentCell = _available.Rows[index].Cells[0];
             }
+            _refresh.Text = $"Tìm phòng trống ({rooms.Count})";
         }
-        catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
-        catch (Exception ex) { if (!IsDisposed) MessageBox.Show(this, "Lỗi tải phòng trống: " + ex.Message, "Lỗi"); }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) { if (!IsDisposed) Ui.Info(this, "Lỗi tải phòng trống: " + ex.Message); }
         finally
         {
-            if (ReferenceEquals(_loading, cancellation))
+            if (ReferenceEquals(_searchCancellation, cancellation))
             {
-                _loading = null;
-                if (!IsDisposed) _available.Enabled = !_saving;
+                _searchCancellation = null;
+                if (!IsDisposed) _available.Enabled = true;
             }
         }
     }
-
-    private void RefreshSelected()
+    private void RenderChosen()
     {
-        _selected.Rows.Clear();
-        foreach (var room in _rooms) _selected.Rows.Add(room.RoomId, room.Guests, room.CheckIn, room.CheckOut, Properties.Resources.delete);
-    }
-
-    private async Task SaveAsync()
-    {
-        if (_saving) return;
-        _saving = true;
-        _loading?.Cancel();
-        foreach (Control control in Controls) control.Enabled = false;
-        try
-        {
-            await LookupCustomerAsync();
-            var customer = new BookingCustomer(_name.Text.Trim(), _identity.Text.Trim(), _phone.Text.Trim(), _nationality.Text.Trim(), _gender.Text);
-            string id = await BookingService.SaveAsync(customer, _rooms.ToList(), DangNhap.FormDangNhap.MaNV_DangNhap, _lifetime.Token);
-            MessageBox.Show(this, $"Đặt phòng thành công! Mã phiếu: {id}", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            _saving = false; DialogResult = DialogResult.OK; Close();
-        }
-        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
-        catch (Exception ex)
-        {
-            if (!IsDisposed) MessageBox.Show(this, "Không thể đặt phòng: " + (ex.InnerException?.Message ?? ex.Message), "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-        }
-        finally
-        {
-            _saving = false;
-            if (!IsDisposed)
-            {
-                foreach (Control control in Controls) control.Enabled = true;
-                _available.Enabled = true;
-            }
-        }
+        _chosen.Rows.Clear();
+        foreach (var room in _rooms) _chosen.Rows.Add(room.RoomId, room.Guests, room.CheckIn, room.CheckOut);
     }
 }
